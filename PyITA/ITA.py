@@ -601,7 +601,6 @@ class Transformer:
         else:
             raise ValueError("Mask not supported")
         
-
     def step4_QK(self, no_partial_softmax, index):
         self.A = np.array(
             [np.matmul(self.Qp_requant[i], np.transpose(self.Kp_requant[i]), dtype = np.int32) for i in range(self.H)])
@@ -609,28 +608,12 @@ class Transformer:
         self.A_requant = requantize(self.A, self.requant_eps_mult[3], self.requant_right_shift[3], self.requant_add[3])
 
         self.apply_mask(index)
-        
-        print(self.Mask)
-        
-        matrix = np.squeeze(self.A_requant)
-        plt.imshow(matrix, cmap='viridis')
-        plt.colorbar()
-        plt.title("A_requant/A_stream_soft_in")
-        plt.show()
-
-        print(f"A_requant row 0: {self.A_requant[0, 0, :]}")
 
         if (self.S_ITA - self.S) > 0:
             self.A_requant[:, -(self.S_ITA - self.S):, :] = 0
             self.A_requant[:, :, -(self.S_ITA - self.S):] = 0
         
         self.soft(no_partial_softmax)
-
-        matrix = np.squeeze(self.A_partial_softmax)
-        plt.imshow(matrix, cmap='viridis')
-        plt.colorbar()
-        plt.title("A_partial_softmax")
-        plt.show()
 
         self.tiler_AV(self.Qp_requant, self.Kp_requant, self.A_requant, "Qp_in", "Kp_in", "A")
 
@@ -645,8 +628,6 @@ class Transformer:
         else:
             self.A_partial_softmax = streamingPartialSoftmax(self.A_requant[:, :self.S, :self.S], self.Mask)
             self.A_partial_softmax[self.Mask] = 0
-            print(f"inp_stream_soft_o: {self.A_partial_softmax[0,:,:]}")
-            print(f"Normalization Sum: {np.sum(self.A_partial_softmax[0,:,:], axis=1)}")
             self.A_partial_softmax = np.pad(self.A_partial_softmax,
                                             ((0, 0), (0, self.S_ITA - self.S), (0, self.S_ITA - self.S)))
 
@@ -657,44 +638,24 @@ class Transformer:
             A_save = self.A_partial_softmax[h]
             write_matrix(A_save, f"A_soft_{h}", self.paths["standalone"])
 
-    def step5_AV(self):
-        print(f"A_partial_softmax: {self.A_partial_softmax.shape}")
-        print(f"Vp_requant: {self.Vp_requant.shape}")
-        
+    def step5_AV(self):        
         self.O_soft = np.array([
             np.matmul(self.A_partial_softmax[i].astype(np.uint8), self.Vp_requant[i], dtype = np.int32)
             for i in range(self.H)
         ])
-        print(f"O_soft without requant row 0: {self.O_soft[0, 62, :]}")
-        print(f"O_soft without requant row 0: {self.O_soft[0, 63, :]}")
-        print(f"O_soft without requant row 0: {self.O_soft[0, 0, :]}")
-        print(f"O_soft without requant row 0: {self.O_soft[0, 1, :]}")
-        
+              
         self.O_soft = np.clip(self.O_soft, -2**(self.WO - 1), 2**(self.WO - 1) - 1)
         self.O_soft_requant = requantize(self.O_soft, self.requant_eps_mult[4], self.requant_right_shift[4],
                                          self.requant_add[4])
         
-        print(f"O_soft_requant: {self.O_soft_requant[0, 62, :]}")
-        print(f"O_soft_requant: {self.O_soft_requant[0, 63, :]}")
-        print(f"O_soft_requant: {self.O_soft_requant[0, 0, :]}")
-        print(f"O_soft_requant: {self.O_soft_requant[0, 1, :]}")
-
         if (self.S_ITA - self.S) > 0:
             self.O_soft_requant[:, -(self.S_ITA - self.S):, :] = 0
         if (self.P_ITA - self.P) > 0:
             self.O_soft_requant[:, :, -(self.P_ITA - self.P):] = 0
 
-        matrix = np.squeeze(self.O_soft_requant)
-        plt.imshow(matrix, cmap='viridis')
-        plt.colorbar()
-        plt.title("O_soft_requant/O_soft")
-        plt.show()
-
         self.tiler_AV(self.A_requant, np.transpose(self.Vp_requant, (0, 2, 1)), self.O_soft_requant, "A_stream_soft_in",
                       "Vp_in", "O_soft")
         
-        
-
     def apply_activation(self, preactivation, activation):
         if activation not in ["gelu", "relu", "identity"]:
             raise ValueError("Activation function not supported")
@@ -718,12 +679,6 @@ class Transformer:
         self.Out_soft = np.clip(self.Out_soft, -2**(self.WO - 1), 2**(self.WO - 1) - 1)
         self.Out_soft_requant = requantize(self.Out_soft, self.requant_eps_mult[5], self.requant_right_shift[5],
                                            self.requant_add[5])
-
-        matrix = np.squeeze(self.Out_soft_requant)
-        plt.imshow(matrix, cmap='viridis')
-        plt.colorbar()
-        plt.title("Out_soft_requant")
-        plt.show()
 
         if (self.S_ITA - self.S) > 0:
             self.Out_soft_requant[:, -(self.S_ITA - self.S):, :] = 0

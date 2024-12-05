@@ -395,7 +395,6 @@ module ita_controller
     end
     inp_bias_padded = inp_bias;
 
-    
     mask_d = '0;
     case (ctrl_i.mask_type)
       None: begin
@@ -441,18 +440,14 @@ module ita_controller
                 end
               end
             end else if ((count_q & (M-1)) < (mask_pos_q & (M-1))) begin
-              for (int i = 0; i < N; i++) begin
-                mask_d[i] = 1'b1;
-              end
+              mask_d = '1;
             end 
           end else if (mask_tile_x_pos_q <= tile_x_q && mask_tile_y_pos_q != tile_y_q && last_inner_tile_o == 1'b1) begin
-            for (int i = 0; i < N; i++) begin
-              mask_d[i] = 1'b1;
-            end
+            mask_d = '1;
           end else if (mask_tile_x_pos_q != tile_x_q && mask_tile_y_pos_q == tile_y_q && last_inner_tile_o == 1'b1) begin
-            for (int i = 0; i < N; i++) begin
-              mask_d[i] = 1'b0;
-            end
+            mask_d = '0;
+          end else begin
+            mask_d = '0;
           end   
         end
       end
@@ -491,18 +486,12 @@ module ita_controller
                 end
               end
             end else if ((count_q & (M-1)) >= (mask_pos_q & (M-1))) begin
-              for (int i = 0; i < N; i++) begin
-                mask_d[i] = 1'b1;
-              end
+              mask_d = '1;
             end 
           end else if (mask_tile_x_pos_q > tile_x_q && mask_tile_y_pos_q == tile_y_q && last_inner_tile_o == 1'b1) begin
-            for (int i = 0; i < N; i++) begin
-              mask_d[i] = 1'b1;
-            end
+            mask_d = '1;
           end else if (mask_tile_x_pos_q >= tile_x_q && mask_tile_y_pos_q != tile_y_q && last_inner_tile_o == 1'b1) begin
-            for (int i = 0; i < N; i++) begin
-              mask_d[i] = 1'b0;
-            end
+            mask_d = '0;
           end   
         end
       end
