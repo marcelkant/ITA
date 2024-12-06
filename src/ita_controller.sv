@@ -95,9 +95,6 @@ module ita_controller
     softmax_div_done_d = softmax_div_done_q;
     last_time          = 1'b0;
     requant_add        = {N {requant_add_i}};
-    mask_col_offset_d  = (step_q == QK || step_q == AV) ? mask_col_offset_q : ((ctrl_i.mask_start_index) & (N-1));
-    mask_pos_d         = (step_q == QK || step_q == AV) ? mask_pos_q : ((((ctrl_i.mask_start_index)/N)*M) & ((M*M/N)-1));
-    mask_tile_x_pos_d  = (step_q == QK || step_q == AV) ? mask_tile_x_pos_q : ((ctrl_i.mask_start_index) / M);
     inp_bias           = inp_bias_i;
     mask_tile_y_pos_d  = mask_tile_y_pos_q;
     mask_d             = mask_q;
