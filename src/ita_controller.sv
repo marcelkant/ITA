@@ -505,25 +505,47 @@ module ita_controller
         end
       end
       Strided: begin
-        mask_col_offset_d  = '0;
+        mask_col_pos_d     = (step_q == QK || step_q == AV) ? mask_col_pos_q : ctrl_i.mask_start_index;
+        mask_row_pos_d     = (step_q == QK || step_q == AV) ? mask_row_pos_q : ctrl_i.mask_start_index;
+        //mask_col_offset_d  = (step_q == QK || step_q == AV) ? mask_col_offset_q : ((mask_col_pos_q) & (N-1));
+        //Should be mask_col_pos
         mask_tile_x_pos_d  = '0;
-        mask_tile_y_pos_d  = '0;
-        mask_pos_d         = '0;
-        mask_d             = '0;
+        //Should be mask_row_index
+        mask_tile_y_pos_d  = (step_q == QK || step_q == AV) ? mask_tile_y_pos_q : ctrl_i.mask_start_index;
+        //Should be mask_col_pos_actual
+        mask_pos_d         = (step_q == QK || step_q == AV) ? mask_pos_q : '0;
+        mask_d             = '1;
         
         if (step_q == QK) begin
           if (last_inner_tile_o == 1'b1) begin
-            for (int i = 0; i < N; i++) begin
-              //col_pos = count_q/M + i + mask_tile_x_pos_q * M
-              //row_pos = count_q & (M-1) + mask_tile_y_pos_q * M
-              if ((((((count_q / M) * N) + i + (tile_x_q * M)) - ((count_q & (M-1)) + (tile_y_q * M))) & (ctrl_i.mask_start_index-1)) == 0) begin
-                mask_d[i] = 1'b0;
-              end else begin
-                mask_d[i] = 1'b1;
+            if ((count_q & (M-1)) == 0) begin
+              for (int i = 0; i < N; i++) begin
+                if (i == 0 && ((count_q / M) * N) == 0) begin
+                  mask_d[i] = 0;
+                end else if (i == (mask_col_pos_q & (N-1)) && ((((count_q / M) * N) + (tile_x_q * M)) == (mask_col_pos_d / N))) begin
+                  mask_col_pos_d = mask_col_pos_q + ctrl_i.mask_start_index;
+                  mask_d[i] = 0;
+                end else begin
+                  mask_d[i] = 1;
+                end
               end
+            end else if (count_q >= mask_pos_q && count_q < (mask_pos_q + N)) begin
+              //Circular shift
+              mask_d = (mask_q << (N-1)) | (mask_q >> 1) 
+              if ((count_q & (M-1)) == mask_row_pos_q) begin
+                mask_row_pos_d = mask_row_pos_q + ctrl_i.mask_start_index;
+              end 
+              if ((count_q & (N-1)) == (N-1)) begin
+                if (ctrl_i.mask_start_index < N) begin
+                  mask_pos_d = mask_pos_q + N; 
+                end else begin
+                  mask_pos_d = mask_pos_q + ctrl_i.mask_start_index;
+                end
+              end
+              $display("Circular shift", mask_d);
             end
           end
-        end        
+        end    
       end
     endcase
 
