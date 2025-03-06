@@ -52,6 +52,7 @@ module ita_softmax
   counter_t tile_x_q, tile_y_q;
   counter_t mask_tile_x_d, mask_tile_x_q, mask_tile_y_d, mask_tile_y_q;
   counter_t mask_tile_outer_dim_d, mask_tile_outer_dim_q;
+  counter_t max_tile_count;
 
   logic unsigned [SoftmaxAccDataWidth-1:0] exp_sum_d, exp_sum_q;
   counter_t count_soft_d, count_soft_q1, count_soft_q2, count_soft_mask_q;
@@ -126,7 +127,11 @@ module ita_softmax
     mask_tile_x_d     = mask_tile_x_q;
     mask_tile_y_d     = mask_tile_y_q;
     mask_tile_outer_dim_d       = mask_tile_outer_dim_q;
-    
+    max_tile_count = ((((ctrl_i.mask_start_index + 2*M - 2)/M + tile_y_q) < ctrl_i.tile_s) &&
+        ctrl_i.mask_type == UpperTriangular) ?
+        ((ctrl_i.mask_start_index + 2*M - 2)/M + tile_y_q) :
+        ctrl_i.tile_s;
+    //max_tile_count = ctrl_i.tile_s;
 
     //************ Accumulation ************//
     case (step_i)
@@ -199,7 +204,7 @@ module ita_softmax
     //************ Pipeline Stage 3 ************//
     // Write accumulated sum or send to division fifo
     if (calc_en_q3) begin // Write accumulated sum or send to division fifo
-      if (count_q4>=(M*M/N-M) && tile_q4 == ctrl_i.tile_s-1) begin // If last tile and last part of the row
+      if (count_q4>=(M*M/N-M) && tile_q4 == max_tile_count-1) begin // If last tile and last part of the row
         // Main controller checks if FIFO is full
         push_to_fifo = 1;
         data_to_fifo = exp_sum_q;

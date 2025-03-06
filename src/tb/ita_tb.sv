@@ -323,9 +323,10 @@ task automatic apply_ITA_inputs(input integer phase);
       integer group;
       integer stim_fd_inp;
       integer stim_fd_bias;
+      bit group_skip;
 
       $display("[TB] ITA: Applying  inputs in phase %0d at %t.", phase, $time);
-
+      $display("stim file %s", INPUT_FILES[phase]);
       group = 0;
       tile = 0;
       tile_entry = 0;
@@ -334,11 +335,24 @@ task automatic apply_ITA_inputs(input integer phase);
       stim_fd_inp_attn[0] = stim_fd_inp;
       stim_fd_inp_attn[1] = open_stim_file(ATTENTION_INPUT_FILES[0]);
       is_end_of_input = 0;
+      group_skip = 0;
 
       while (!is_end_of_input) begin
         @(posedge clk);
         #(APPL_DELAY);
         if (successful_handshake(inp_valid_q, inp_ready_q)) begin
+          if (group_skip) begin
+            if (phase == 3 && group == 1) begin
+              for (int j = 0; j < (2*N_ENTRIES_PER_PROJECTION_DIM); j++) begin
+                read_input(stim_fd_inp_attn[0]);
+              end
+            end else if (phase == 3 && group == 3) begin  
+              for (int j = 0; j < (1*N_ENTRIES_PER_PROJECTION_DIM); j++) begin
+                read_input(stim_fd_inp_attn[0]);
+              end
+            end
+            group_skip = 0;
+          end  
           read_input(stim_fd_inp);
           read_bias(stim_fd_bias, phase, tile);
         end
@@ -348,6 +362,16 @@ task automatic apply_ITA_inputs(input integer phase);
         inp_ready_q = inp_ready;
         if(successful_handshake(inp_valid, inp_ready)) begin
           tile_entry += 1;
+          if (group == 0 && phase == 3 && tile_entry == N_ENTRIES_PER_PROJECTION_DIM*2) begin
+            $display("skip group 0 input");
+            tile_entry = N_ENTRIES_LINEAR_OUTPUT;
+            group_skip = 1;
+          end else if (group == 2 && phase == 3 && tile_entry == (N_ENTRIES_PER_PROJECTION_DIM*3)) begin
+            $display("skip group 1 input %0d", tile_entry);
+            tile_entry = N_ENTRIES_LINEAR_OUTPUT;
+            group_skip = 1;
+          end
+          
           if (should_toggle_input(tile_entry, group) && phase == 3) begin
             $display("[TB] ITA: Input Switch:  tile_entry: %0d, group: %0d at %t.", tile_entry, group, $time);
             toggle_input(tile_entry, group, input_file_index);
@@ -376,7 +400,7 @@ task automatic apply_ITA_weights(input integer phase);
     integer tile_entry;
     integer group;
     integer stim_fd_weight;
-
+    bit group_skip;
     $display("[TB] ITA: Applying weights in phase %0d at %t.", phase, $time);
 
     group = 0;
@@ -386,12 +410,24 @@ task automatic apply_ITA_weights(input integer phase);
     stim_fd_weight_attn[0] = stim_fd_weight;
     stim_fd_weight_attn[1] = open_stim_file(ATTENTION_WEIGHT_FILES[0]);
     is_end_of_input = 0;
-
+    group_skip = 0;
 
     while (!is_end_of_input) begin
       @(posedge clk);
       #(APPL_DELAY);
       if (successful_handshake(inp_weight_valid_q, inp_weight_ready_q)) begin
+        if (group_skip) begin
+          if (phase == 3 && group == 1) begin
+            for (int j = 0; j < (2*N_ENTRIES_PER_PROJECTION_DIM); j++) begin
+              read_weight(stim_fd_weight_attn[0]);
+            end
+          end else if (phase == 3 && group == 3) begin  
+            for (int j = 0; j < (1*N_ENTRIES_PER_PROJECTION_DIM); j++) begin
+              read_weight(stim_fd_weight_attn[0]);
+            end
+          end
+          group_skip = 0;
+        end  
         read_weight(stim_fd_weight);
       end
       inp_weight_valid = get_random();
@@ -400,6 +436,17 @@ task automatic apply_ITA_weights(input integer phase);
       inp_weight_ready_q = inp_weight_ready;
       if (successful_handshake(inp_weight_valid, inp_weight_ready)) begin
         tile_entry += 1;
+        if (group == 0 && phase == 3 && tile_entry == N_ENTRIES_PER_PROJECTION_DIM*2) begin
+          // @(posedge clk);
+          $display("skip group 0 weight");
+          tile_entry = N_ENTRIES_LINEAR_OUTPUT;
+          group_skip = 1;
+        end else if (group == 2 && phase == 3 && tile_entry == (N_ENTRIES_PER_PROJECTION_DIM*3)) begin
+          // @(posedge clk);
+          tile_entry = N_ENTRIES_LINEAR_OUTPUT;
+          $display("skip group 1 weight, %0d", tile_entry);
+          group_skip = 1;
+        end
         if (should_toggle_input(tile_entry, group) && phase == 3) begin
           $display("[TB] ITA: Weight Switch: tile_entry: %0d, group: %0d at %t.", tile_entry, group, $time);
           toggle_input(tile_entry, group, input_file_index);
@@ -473,13 +520,26 @@ task automatic apply_ITA_weights(input integer phase);
       if (successful_handshake(oup_valid, oup_ready)) begin
         tile_entry += 1;
         if (requant_oup !== exp_res) begin
-          $display("[TB] ITA: Wrong value received %x, instead of %x at %t. (phase:  %0d)", requant_oup, exp_res, $time, phase);
+          $display("[TB] ITA: Wrong value received %x, instead of %x at %t. (phase:  %0d, group: %0d, tile_entry %0d)", requant_oup, exp_res, $time, phase, group, tile_entry);
+        end
+        if (phase == 3 && group == 2 && tile_entry == 768) begin
+          for (int j = 0; j < 256; j++) begin
+            read_exp_resp(exp_resp_fd);
+            tile_entry += 1;
+          end
+          $display("output tile entry %0d phase %0d group %0d", tile_entry, phase, group);
+        end else if (phase == 3 && group == 0 && tile_entry == 512) begin
+          for (int j = 0; j < 512; j++) begin
+            read_exp_resp(exp_resp_fd);
+            tile_entry += 1;
+          end
+          $display("output tile entry %0d phase %0d group %0d", tile_entry, phase, group);
         end
         if (!is_last_group(group) && phase == 3 && should_toggle_output(input_file_index, tile_entry)) begin
             $display("[TB] ITA: %0d outputs were checked in phase %0d.",tile_entry, phase);
             $display("[TB] ITA: Output Switch: tile_entry: %0d, group: %0d at %t.", tile_entry, group, $time);
             toggle_input(tile_entry, group, input_file_index);
-          end
+        end
       exp_resp_fd = exp_resp_fd_attn[input_file_index];
       is_end_of_input = $feof(exp_resp_fd);
       end

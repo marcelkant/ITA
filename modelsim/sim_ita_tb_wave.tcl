@@ -15,6 +15,7 @@ add wave -noupdate /ita_tb/dut/oup_o
 add wave -noupdate /ita_tb/dut/inp1_q
 add wave -noupdate /ita_tb/dut/inp2_q
 
+add wave -group {Requantizer} /ita_tb/dut/i_requantizer/*
 add wave -group {Controller} /ita_tb/dut/i_controller/*
 add wave -group {Softmax Controller} ita_tb/dut/i_softmax_top/i_softmax/*
 add wave -group {Accumulator} ita_tb/dut/i_accumulator/*

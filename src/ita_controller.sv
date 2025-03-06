@@ -46,6 +46,7 @@ module ita_controller
   counter_t inner_tile_d, inner_tile_q;
   counter_t tile_x_d, tile_x_q, bias_tile_x_d, bias_tile_x_q;
   counter_t tile_y_d, tile_y_q, bias_tile_y_d, bias_tile_y_q;
+  counter_t max_tile_count;
   counter_t softmax_tile_d, softmax_tile_q;
   ongoing_t ongoing_d, ongoing_q;
   ongoing_soft_t ongoing_soft_d, ongoing_soft_q;
@@ -93,6 +94,12 @@ module ita_controller
     busy_d             = busy_q;
     softmax_fifo       = 1'b0;
     softmax_div        = 1'b0;
+    max_tile_count     = ctrl_i.tile_s;
+    if (ctrl_i.mask_type == UpperTriangular) begin
+      max_tile_count = ((ctrl_i.mask_start_index + 2*M - 2)/M + tile_y_q) < ctrl_i.tile_s ?
+      ((ctrl_i.mask_start_index + 2*M - 2)/M + tile_y_q) :
+      ctrl_i.tile_s;
+    end
 
     if (step_q != AV) begin
       softmax_div_done_d = 1'b0;
@@ -107,7 +114,7 @@ module ita_controller
     // default handshake
     if (step_q != Idle) begin
       // Check if division for softmax is going to FIFO
-      if (step_q == QK && inner_tile_q == ctrl_i.tile_p-1 && tile_q == ctrl_i.tile_s-1 && count_q >= (M*M/N-M)) begin
+      if (step_q == QK && inner_tile_q == ctrl_i.tile_p-1 && tile_q == max_tile_count-1 && count_q >= (M*M/N-M)) begin
         softmax_fifo = 1'b1;
       end
       // Check if division for softmax is completed for the row
@@ -224,15 +231,16 @@ module ita_controller
         inner_tile_dim = ctrl_i.tile_p-1;
         first_outer_dim = ctrl_i.seq_length;
         second_outer_dim = ctrl_i.seq_length;
+
         if (inner_tile_d == ctrl_i.tile_p) begin // end of inner tile
           inner_tile_d = '0;
           tile_d = tile_q + 1;
-          if (tile_x_q == (ctrl_i.tile_s-1)) begin
+          if (tile_x_q == (max_tile_count-1)) begin
             tile_x_d = '0;
           end else begin
             tile_x_d = tile_x_q + 1;
           end
-          if (tile_d == ctrl_i.tile_s) begin // end of step QK
+          if (tile_d == max_tile_count) begin // end of step QK
             tile_d = '0;
             step_d = AV;
           end
