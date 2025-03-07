@@ -52,7 +52,7 @@ module ita_softmax
   counter_t tile_x_q, tile_y_q;
   counter_t mask_tile_x_d, mask_tile_x_q, mask_tile_y_d, mask_tile_y_q;
   counter_t mask_tile_outer_dim_d, mask_tile_outer_dim_q;
-  counter_t max_tile_count;
+  counter_t min_tile_count, max_tile_count;
 
   logic unsigned [SoftmaxAccDataWidth-1:0] exp_sum_d, exp_sum_q;
   counter_t count_soft_d, count_soft_q1, count_soft_q2, count_soft_mask_q;
@@ -127,16 +127,28 @@ module ita_softmax
     mask_tile_x_d     = mask_tile_x_q;
     mask_tile_y_d     = mask_tile_y_q;
     mask_tile_outer_dim_d       = mask_tile_outer_dim_q;
-    max_tile_count = ((((ctrl_i.mask_start_index + 2*M - 2)/M + tile_y_q) < ctrl_i.tile_s) &&
-        ctrl_i.mask_type == UpperTriangular) ?
-        ((ctrl_i.mask_start_index + 2*M - 2)/M + tile_y_q) :
-        ctrl_i.tile_s;
-    //max_tile_count = ctrl_i.tile_s;
+
+    case (ctrl_i.mask_type)
+      (UpperTriangular): begin
+        max_tile_count = ((ctrl_i.mask_start_index + 2*M - 2)/M + tile_y_q) < ctrl_i.tile_s ?
+          ((ctrl_i.mask_start_index + 2*M - 2)/M + tile_y_q) :
+          ctrl_i.tile_s;
+      end
+      default: max_tile_count = ctrl_i.tile_s;
+    endcase
+    case (ctrl_i.mask_type)
+      (LowerTriangular): begin
+        min_tile_count = (tile_y_i > (ctrl_i.mask_start_index - 2 + M) / M) ?
+        (ctrl_i.mask_start_index - 2 + M) / M :
+        0;
+      end
+      default: min_tile_count = 0;
+    endcase
 
     //************ Accumulation ************//
     case (step_i)
       default : begin
-        tile_d      = '0;
+        tile_d      = min_tile_count;
         count_d     = '0;
       end
       QK : begin

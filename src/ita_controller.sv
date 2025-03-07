@@ -46,7 +46,7 @@ module ita_controller
   counter_t inner_tile_d, inner_tile_q;
   counter_t tile_x_d, tile_x_q, bias_tile_x_d, bias_tile_x_q;
   counter_t tile_y_d, tile_y_q, bias_tile_y_d, bias_tile_y_q;
-  counter_t max_tile_count;
+  counter_t min_tile_count, max_tile_count;
   counter_t softmax_tile_d, softmax_tile_q;
   ongoing_t ongoing_d, ongoing_q;
   ongoing_soft_t ongoing_soft_d, ongoing_soft_q;
@@ -94,12 +94,24 @@ module ita_controller
     busy_d             = busy_q;
     softmax_fifo       = 1'b0;
     softmax_div        = 1'b0;
-    max_tile_count     = ctrl_i.tile_s;
-    if (ctrl_i.mask_type == UpperTriangular) begin
-      max_tile_count = ((ctrl_i.mask_start_index + 2*M - 2)/M + tile_y_q) < ctrl_i.tile_s ?
-      ((ctrl_i.mask_start_index + 2*M - 2)/M + tile_y_q) :
-      ctrl_i.tile_s;
-    end
+    
+    case (ctrl_i.mask_type)
+      (UpperTriangular): begin
+        max_tile_count = ((ctrl_i.mask_start_index + 2*M - 2)/M + tile_y_q) < ctrl_i.tile_s ?
+          ((ctrl_i.mask_start_index + 2*M - 2)/M + tile_y_q) :
+        ctrl_i.tile_s;
+      end
+      default: max_tile_count = ctrl_i.tile_s;
+    endcase
+    case (ctrl_i.mask_type)
+      (LowerTriangular): begin
+        min_tile_count = (tile_y_q > (ctrl_i.mask_start_index - 2 + M) / M) ?
+          (ctrl_i.mask_start_index - 2 + M) / M :
+          0;
+      end
+      default: min_tile_count = 0;
+    endcase
+
 
     if (step_q != AV) begin
       softmax_div_done_d = 1'b0;
@@ -236,13 +248,14 @@ module ita_controller
           inner_tile_d = '0;
           tile_d = tile_q + 1;
           if (tile_x_q == (max_tile_count-1)) begin
-            tile_x_d = '0;
+            tile_x_d = min_tile_count;
           end else begin
             tile_x_d = tile_x_q + 1;
           end
-          if (tile_d == max_tile_count) begin // end of step QK
+          if (tile_d == max_tile_count-min_tile_count) begin // end of step QK
             tile_d = '0;
             step_d = AV;
+            tile_x_d = '0;
           end
         end
       end
@@ -271,6 +284,14 @@ module ita_controller
                 step_d = Idle;
               end
             end else begin
+              case (ctrl_i.mask_type)
+                (LowerTriangular): begin
+                  tile_x_d = ((tile_y_q + 1) > (ctrl_i.mask_start_index - 2 + M) / M) ?
+                    tile_y_q + 1 - (ctrl_i.mask_start_index - 2 + M) / M :
+                    0;
+                  end
+                  default: tile_x_d = 0;
+              endcase
               tile_y_d = tile_y_q + 1;
               step_d = QK;
             end

@@ -41,7 +41,7 @@ echo "no_stalls=$no_stalls" >> $log_file
 echo "n_tests=$n_tests" >> $log_file
 
 # List of masking names
-masking_names=("upper_triangular")
+masking_names=("lower_triangular")
 
 # List of activation names
 activation_names=("identity")
@@ -61,7 +61,7 @@ is_strided_mask() {
 # Run the tests
 for test_idx in $(seq 1 $n_tests); do
     # Randomly pick s, e, p, f in [2..512]
-    s=405
+    s=256
     e=64
     p=128
     f=64

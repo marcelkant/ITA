@@ -479,7 +479,7 @@ class Transformer:
             # Repeat each tile number of output row tiles times
             Input = np.tile(Input, [1, tile_y, 1, 1]).reshape((-1, self.ITA_M))
             write_matrix(Input, f"{input_file}_{h}", self.paths["standalone"])
-        print(Input.shape)
+        
         # Weight Kp is H x S x P or V is H x P x S
         for h in range(self.H):
             Weight = split_matrix(Kp[h], (self.ITA_M, self.ITA_M))
