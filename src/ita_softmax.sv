@@ -139,7 +139,7 @@ module ita_softmax
     case (ctrl_i.mask_type)
       (LowerTriangular): begin
         min_tile_count = (tile_y_i > (ctrl_i.mask_start_index - 2 + M) / M) ?
-        (ctrl_i.mask_start_index - 2 + M) / M :
+        tile_y_i - (ctrl_i.mask_start_index - 2 + M) / M :
         0;
       end
       default: min_tile_count = 0;

@@ -106,7 +106,7 @@ module ita_controller
     case (ctrl_i.mask_type)
       (LowerTriangular): begin
         min_tile_count = (tile_y_q > (ctrl_i.mask_start_index - 2 + M) / M) ?
-          (ctrl_i.mask_start_index - 2 + M) / M :
+          tile_y_d - (ctrl_i.mask_start_index - 2 + M) / M:
           0;
       end
       default: min_tile_count = 0;
@@ -292,6 +292,7 @@ module ita_controller
                   end
                   default: tile_x_d = 0;
               endcase
+              // tile_x_d = min_tile_count;
               tile_y_d = tile_y_q + 1;
               step_d = QK;
             end

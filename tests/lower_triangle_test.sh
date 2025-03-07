@@ -96,7 +96,7 @@ for test_idx in $(seq 1 $n_tests); do
             echo "No valid i for mask=$masking with s=$s (need i < s). Skipping..."
             continue
         fi
-	i=17
+	i=1
         # i=$((1 + (RANDOM % (s-1))))
     fi
 
