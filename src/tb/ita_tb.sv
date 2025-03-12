@@ -290,7 +290,7 @@ function integer calc_skip_entries(input integer group, input integer tile_entry
       end
     end
     (LowerTriangular): begin
-      skip_tile = (MASK_START_INDEX-1+M_TILE_LEN)/M_TILE_LEN;
+      skip_tile = (MASK_START_INDEX-2+2*M_TILE_LEN)/M_TILE_LEN;
       if (group/2 >= skip_tile && tile_entry == 0) begin
         skip_tile_entries = N_ENTRIES_PER_PROJECTION_DIM*(group/2-skip_tile+1);
         $display("group %0d, skip tile %0d, skip tile entries %0d", group, skip_tile, skip_tile_entries);
@@ -301,33 +301,6 @@ function integer calc_skip_entries(input integer group, input integer tile_entry
     default: return 0;
   endcase
   return skip_tile_entries;
-endfunction
-
-function bit should_skip_output(input integer group, input integer tile_entry);   
-  integer skip_tile;
-  integer skip_entry;
-  integer skip_tile_entries;
-  if (group % 2 == 1) begin
-    return 0;
-  end
-
-  case (MASK)
-    (UpperTriangular): begin
-      skip_tile = (MASK_START_INDEX + 2*M_TILE_LEN - 2) / M_TILE_LEN + group / 2;
-      skip_entry = skip_tile * N_PE**2;
-    end
-    (LowerTriangular): begin
-      skip_tile = (MASK_START_INDEX-2+M_TILE_LEN)/M_TILE_LEN;
-      if (group/2 > skip_tile) begin
-        skip_entry = N_ENTRIES_PER_SEQUENCE_DIM - (group/2 - skip_tile) * N_PE**2;
-        $display("skip output group %0d, tile entry %0d, skip entry %0d", group, tile_entry, skip_tile);
-      end else begin
-        skip_entry = N_ENTRIES_PER_SEQUENCE_DIM;
-      end
-    end
-    default: return 0;
-  endcase
-  return (tile_entry == skip_entry);
 endfunction
 
 function integer calc_skip_output(input integer group, input integer tile_entry);
@@ -348,7 +321,7 @@ function integer calc_skip_output(input integer group, input integer tile_entry)
       end
     end
     (LowerTriangular): begin 
-      skip_tile = group/2 - (MASK_START_INDEX-1+M_TILE_LEN)/M_TILE_LEN;
+      skip_tile = group/2 - (MASK_START_INDEX-2+2*M_TILE_LEN)/M_TILE_LEN;
       if (group/2 >= skip_tile && tile_entry == 0) begin
         skip_tile_entries = (skip_tile+1) * N_PE**2;
       end else begin
@@ -581,27 +554,6 @@ task automatic apply_ITA_weights(input integer phase);
             tile_entry += 1;
           end
         end  
-       /* if (phase == 3 && tile_entry == 0) begin
-          $display("output skip group %0d, tile entry %0d", group, tile_entry);
-          if (group == 2) begin
-            for (int j = 0; j < N_ENTRIES_PER_TILE; j++) begin
-              read_exp_resp(exp_resp_fd_attn[0]);
-              tile_entry += 1;
-            end
-          end else if (group == 4) begin
-            for (int j = 0; j < 2*N_ENTRIES_PER_TILE; j++) begin
-              read_exp_resp(exp_resp_fd_attn[0]);
-              tile_entry += 1;
-            end
-          end else if (group == 6) begin
-            for (int j = 0; j < 3*N_ENTRIES_PER_TILE; j++) begin
-              read_exp_resp(exp_resp_fd_attn[0]);
-              tile_entry += 1;
-            end
-          end*/
-          /*for (int j = 0; j < calc_skip_output(group-1); j++) begin
-            read_exp_resp(exp_resp_fd_attn[0]);
-          end*/
         read_exp_resp(exp_resp_fd);
       end
       oup_ready = get_random();

@@ -22,7 +22,7 @@ export buildpath=build
 export SIM_PATH=modelsim/$buildpath
 
 # Set to -gui to use the GUI of QuestaSim
-export vsim_flags=-gui
+export vsim_flags=-c
 
 # Set the no_stalls if not set
 if [ -z "$no_stalls" ]; then
@@ -61,7 +61,7 @@ is_strided_mask() {
 # Run the tests
 for test_idx in $(seq 1 $n_tests); do
     # Randomly pick s, e, p, f in [2..512]
-    s=256
+    s=512
     e=64
     p=128
     f=64
@@ -96,7 +96,7 @@ for test_idx in $(seq 1 $n_tests); do
             echo "No valid i for mask=$masking with s=$s (need i < s). Skipping..."
             continue
         fi
-	i=1
+	i=65
         # i=$((1 + (RANDOM % (s-1))))
     fi
 
