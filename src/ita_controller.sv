@@ -126,7 +126,7 @@ module ita_controller
     // default handshake
     if (step_q != Idle) begin
       // Check if division for softmax is going to FIFO
-      if (step_q == QK && inner_tile_q == ctrl_i.tile_p-1 && tile_q == max_tile_count-1 && count_q >= (M*M/N-M)) begin
+      if (step_q == QK && inner_tile_q == ctrl_i.tile_p-1 && tile_q == max_tile_count-min_tile_count-1 && count_q >= (M*M/N-M)) begin
         softmax_fifo = 1'b1;
       end
       // Check if division for softmax is completed for the row

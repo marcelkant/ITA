@@ -148,7 +148,7 @@ module ita_softmax
     //************ Accumulation ************//
     case (step_i)
       default : begin
-        tile_d      = min_tile_count;
+        tile_d      = '0;
         count_d     = '0;
       end
       QK : begin
@@ -216,7 +216,7 @@ module ita_softmax
     //************ Pipeline Stage 3 ************//
     // Write accumulated sum or send to division fifo
     if (calc_en_q3) begin // Write accumulated sum or send to division fifo
-      if (count_q4>=(M*M/N-M) && tile_q4 == max_tile_count-1) begin // If last tile and last part of the row
+      if (count_q4>=(M*M/N-M) && tile_q4 == max_tile_count-min_tile_count-1) begin // If last tile and last part of the row
         // Main controller checks if FIFO is full
         push_to_fifo = 1;
         data_to_fifo = exp_sum_q;

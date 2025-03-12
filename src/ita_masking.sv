@@ -98,6 +98,16 @@ module ita_masking
                   if ((count_i / M) == ((M / N) - 1)) begin
                     mask_tile_x_pos_d = tile_x_i + 1'b1;
                   end
+                end else if(((count_i + (N - ((ctrl_i.mask_start_index -1) & (N-1)))) & (N-1)) == (N-1)) begin
+                  mask_pos_d = ((count_i + (((ctrl_i.tile_s * (M*M/N)) - M) + 1)) & ((M*M/N)-1));
+                  /*if ((count_i / M) == ((M / N) - 1)) begin
+                    mask_pos_d = 0;
+                    mask_tile_x_pos_d = tile_x_i + 1'b1;
+                  end*/
+                  if (count_i == ((M * M / N) - 1)) begin
+                    mask_pos_d = 1;
+                    mask_tile_x_pos_d = mask_tile_x_pos_q + 1'b1;
+                  end
                 end else begin
                   mask_pos_d = ((count_i + (((ctrl_i.tile_s * (M*M/N)) - M) + 1)) & ((M*M/N)-1));
                 end

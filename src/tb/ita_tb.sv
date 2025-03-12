@@ -336,6 +336,7 @@ function bit should_skip_output(input integer group, input integer tile_entry);
       skip_tile = (MASK_START_INDEX-2+M_TILE_LEN)/M_TILE_LEN;
       if (group/2 > skip_tile) begin
         skip_entry = N_ENTRIES_PER_SEQUENCE_DIM - (group/2 - skip_tile) * N_PE**2;
+        $display("skip output group %0d, tile entry %0d, skip entry %0d", group, tile_entry, skip_tile);
       end else begin
         skip_entry = N_ENTRIES_PER_SEQUENCE_DIM;
       end
@@ -438,11 +439,12 @@ task automatic apply_ITA_inputs(input integer phase);
         @(posedge clk);
         #(APPL_DELAY);
         if (successful_handshake(inp_valid_q, inp_ready_q)) begin
-          if (tile_entry == 0 && phase == 3 && (group == 2 || group == 4)) begin
+          if (tile_entry == 0 && phase == 3) begin
             // (group-1) because 1-based indexing
             /*for (int j = 0; j < calc_skip_entries(group-1); j++) begin
               read_input(stim_fd_inp_attn[0]);
             end*/
+            $display("input skip group %0d", group);
             if (group == 2) begin
               for (int j = 0; j < N_ENTRIES_PER_PROJECTION_DIM; j++) begin
                 read_input(stim_fd_inp_attn[0]);
@@ -450,6 +452,11 @@ task automatic apply_ITA_inputs(input integer phase);
               end
             end else if (group == 4) begin
               for (int j = 0; j < 2*N_ENTRIES_PER_PROJECTION_DIM; j++) begin
+                read_input(stim_fd_inp_attn[0]);
+                tile_entry += 1;
+              end
+            end else if (group == 6) begin
+              for (int j = 0; j < 3*N_ENTRIES_PER_PROJECTION_DIM; j++) begin
                 read_input(stim_fd_inp_attn[0]);
                 tile_entry += 1;
               end
@@ -517,11 +524,12 @@ task automatic apply_ITA_weights(input integer phase);
       @(posedge clk);
       #(APPL_DELAY);
       if (successful_handshake(inp_weight_valid_q, inp_weight_ready_q)) begin
-        if (tile_entry == 0 && phase == 3 && (group == 2 || group == 4)) begin
+        if (tile_entry == 0 && phase == 3) begin
           // (group-1) because 1-based indexing
           /*for (int j = 0; j < calc_skip_entries(group-1); j++) begin
             read_weight(stim_fd_weight_attn[0]);
           end*/
+          $display("weight skip group %0d", group);
           if (group == 2) begin
             for (int j = 0; j < N_ENTRIES_PER_PROJECTION_DIM; j++) begin
               read_weight(stim_fd_weight_attn[0]);
@@ -529,6 +537,11 @@ task automatic apply_ITA_weights(input integer phase);
             end
           end else if (group == 4) begin
             for (int j = 0; j < 2*N_ENTRIES_PER_PROJECTION_DIM; j++) begin
+              read_weight(stim_fd_weight_attn[0]);
+              tile_entry += 1;
+            end
+          end else if (group == 6) begin
+            for (int j = 0; j < 3*N_ENTRIES_PER_PROJECTION_DIM; j++) begin
               read_weight(stim_fd_weight_attn[0]);
               tile_entry += 1;
             end
@@ -618,8 +631,8 @@ task automatic apply_ITA_weights(input integer phase);
       @(posedge clk);
       #(APPL_DELAY);
       if (successful_handshake(oup_valid_q, oup_ready_q)) begin
-        if (phase == 3 && tile_entry == 0 && (group == 2 || group == 4)) begin
-          //$display("output skip group %0d, tile entry $0d", group, tile_entry);
+        if (phase == 3 && tile_entry == 0) begin
+          $display("output skip group %0d, tile entry %0d", group, tile_entry);
           if (group == 2) begin
             for (int j = 0; j < N_ENTRIES_PER_TILE; j++) begin
               read_exp_resp(exp_resp_fd_attn[0]);
@@ -627,6 +640,11 @@ task automatic apply_ITA_weights(input integer phase);
             end
           end else if (group == 4) begin
             for (int j = 0; j < 2*N_ENTRIES_PER_TILE; j++) begin
+              read_exp_resp(exp_resp_fd_attn[0]);
+              tile_entry += 1;
+            end
+          end else if (group == 6) begin
+            for (int j = 0; j < 3*N_ENTRIES_PER_TILE; j++) begin
               read_exp_resp(exp_resp_fd_attn[0]);
               tile_entry += 1;
             end
