@@ -46,6 +46,10 @@ module ita_masking
           if (mask_tile_x_pos_q == tile_x_i && mask_tile_y_pos_q == tile_y_i) begin
             if (count_i == ((M * M / N) - 1)) begin
               mask_tile_x_pos_d = mask_tile_x_pos_q + 1'b1;
+              if (mask_col_offset_d == 1) begin
+                mask_tile_y_pos_d = mask_tile_y_pos_q + 1'b1;
+                mask_pos_d = 1;
+              end
             end
             if ((count_i >= mask_pos_q) && (count_i < (mask_pos_q + N))) begin
               if ((count_i & (M - 1)) == (M - 1)) begin
@@ -54,6 +58,12 @@ module ita_masking
                 if (((count_i + mask_col_offset_q) & (N-1)) == (N-1)) begin
                   mask_pos_d = ((count_i + 1) & ((M*M/N)-1));
                   if ((count_i / M) == ((M / N) - 1)) begin
+                    mask_tile_x_pos_d = tile_x_i + 1'b1;
+                  end
+                end else if (((count_i - 1 + mask_col_offset_q) & (N-1)) == (N-1)) begin
+                  mask_pos_d = ((count_i + (((ctrl_i.tile_s * (M*M/N)) - M) + 1)) & ((M*M/N)-1));
+                  if ((count_i / M) == ((M / N) - 1)) begin
+                    mask_pos_d = 1;
                     mask_tile_x_pos_d = tile_x_i + 1'b1;
                   end
                 end else begin
@@ -100,10 +110,6 @@ module ita_masking
                   end
                 end else if(((count_i + (N - ((ctrl_i.mask_start_index -1) & (N-1)))) & (N-1)) == (N-1)) begin
                   mask_pos_d = ((count_i + (((ctrl_i.tile_s * (M*M/N)) - M) + 1)) & ((M*M/N)-1));
-                  /*if ((count_i / M) == ((M / N) - 1)) begin
-                    mask_pos_d = 0;
-                    mask_tile_x_pos_d = tile_x_i + 1'b1;
-                  end*/
                   if (count_i == ((M * M / N) - 1)) begin
                     mask_pos_d = 1;
                     mask_tile_x_pos_d = mask_tile_x_pos_q + 1'b1;

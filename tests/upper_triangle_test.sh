@@ -61,9 +61,9 @@ is_strided_mask() {
 # Run the tests
 for test_idx in $(seq 1 $n_tests); do
     # Randomly pick s, e, p, f in [2..512]
-    s=405
+    s=256
     e=64
-    p=128
+    p=64
     f=64
 
     # Pick one random masking
@@ -96,7 +96,7 @@ for test_idx in $(seq 1 $n_tests); do
             echo "No valid i for mask=$masking with s=$s (need i < s). Skipping..."
             continue
         fi
-	i=17
+	i=1
         # i=$((1 + (RANDOM % (s-1))))
     fi
 

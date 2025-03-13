@@ -195,12 +195,41 @@ function bit is_last_group(input integer group);
   return group >= N_GROUPS - 1;
 endfunction
 
-function is_last_entry_of_linear_output(input integer tile_entry);
-  return tile_entry >= N_ENTRIES_LINEAR_OUTPUT;
+function is_last_entry_of_linear_output(input integer tile_entry, input integer group);
+  integer skip_tile;
+  integer skip_tile_entry;
+  integer skip_tile_entries;
+  if (group % 2 == 1) begin // Group is in AV step
+    return tile_entry >= N_ENTRIES_LINEAR_OUTPUT;
+  end
+  case (MASK)
+    (UpperTriangular): begin
+      // Calculate max tile. Group also counts AV step, therefore, divide by 2
+      skip_tile = (MASK_START_INDEX + 2*M_TILE_LEN - 2) / M_TILE_LEN + group / 2;
+      // Calculate tile entry to skip
+      skip_tile_entry = N_ENTRIES_PER_PROJECTION_DIM*skip_tile;
+      if (skip_tile_entry >= N_ENTRIES_LINEAR_OUTPUT) begin
+        return tile_entry >= N_ENTRIES_LINEAR_OUTPUT;
+      end else begin
+        return tile_entry >= skip_tile_entry;
+      end
+    end
+    (LowerTriangular): begin
+      skip_tile = (MASK_START_INDEX-2+2*M_TILE_LEN)/M_TILE_LEN;
+      if (group/2 >= skip_tile && tile_entry == 0) begin
+        skip_tile_entries = N_ENTRIES_PER_PROJECTION_DIM*(group/2-skip_tile+1);
+        $display("group %0d, skip tile %0d, skip tile entries %0d", group, skip_tile, skip_tile_entries);
+      end else begin
+        skip_tile_entries = 0;
+      end
+    end
+    default: skip_tile_entries = 0;
+  endcase
+  return tile_entry >= N_ENTRIES_LINEAR_OUTPUT - skip_tile_entries;
 endfunction
 
 function bit should_toggle_input(input integer tile_entry, input integer group);
-  return is_last_entry_of_linear_output(tile_entry) && !is_last_group(group);
+  return is_last_entry_of_linear_output(tile_entry, group) && !is_last_group(group);
 endfunction
 
 task read_bias(input integer stim_fd_bias, input integer phase, input integer tile);
@@ -252,38 +281,67 @@ function bit did_finish_attention_dot_product(input integer tile_entry);
     return tile_entry >= N_ENTRIES_PER_PROJECTION_DIM;
 endfunction
 
-function bit did_finish_output_dot_product(input integer tile_entry);
-    return tile_entry >= N_ENTRIES_PER_SEQUENCE_DIM;
+function bit did_finish_output_dot_product(input integer tile_entry, input integer group);
+  integer skip_tile;
+  integer skip_entry;
+  integer skip_tile_entries;
+  case (MASK)
+    (UpperTriangular): begin
+      skip_tile = (MASK_START_INDEX + 2*M_TILE_LEN - 2) / M_TILE_LEN + group / 2;
+      skip_entry = skip_tile * N_PE**2;
+      return tile_entry >= skip_entry;
+    end
+    (LowerTriangular): begin 
+      skip_tile = group/2 - (MASK_START_INDEX-2+2*M_TILE_LEN)/M_TILE_LEN;
+      if (group/2 >= skip_tile && tile_entry == 0) begin
+        skip_tile_entries = (skip_tile+1) * N_PE**2;
+        return tile_entry >= N_ENTRIES_PER_SEQUENCE_DIM-skip_tile_entries;
+      end else begin
+        return tile_entry >= N_ENTRIES_PER_SEQUENCE_DIM;
+      end
+    end
+    default: return tile_entry >= N_ENTRIES_PER_SEQUENCE_DIM;
+  endcase
 endfunction
 
-function bit is_last_entry_of_output_group(input bit input_file_index, input integer tile_entry);
-    return is_output_group(input_file_index) && did_finish_output_dot_product(tile_entry);
+function bit is_last_entry_of_output_group(input bit input_file_index, input integer tile_entry, input integer group);
+    return is_output_group(input_file_index) && did_finish_output_dot_product(tile_entry, group);
 endfunction
 
 function bit is_last_entry_of_attention_group(input bit input_file_index, input integer tile_entry);
     return is_attention_group(input_file_index) && did_finish_attention_dot_product(tile_entry);
 endfunction
 
-function bit should_toggle_output(input bit input_file_index, input integer tile_entry);
-    return is_last_entry_of_output_group(input_file_index, tile_entry) || is_last_entry_of_attention_group(input_file_index, tile_entry);
+function bit should_toggle_output(input bit input_file_index, input integer tile_entry, input integer group);
+    return is_last_entry_of_output_group(input_file_index, tile_entry, group) || is_last_entry_of_attention_group(input_file_index, tile_entry);
 endfunction
 
 function integer calc_skip_entries(input integer group, input integer tile_entry);
   integer skip_tile;
   integer skip_tile_entry;
   integer skip_tile_entries;
-  if (group % 2 == 1) begin // Group is in AV step
-    return 0;
-  end
   case (MASK)
     (UpperTriangular): begin
+      if (group % 2 == 0) begin // Group is in QK step
+        return 0;
+      end
       // Calculate max tile. Group also counts AV step, therefore, divide by 2
-      skip_tile = (MASK_START_INDEX + 2*M_TILE_LEN - 2) / M_TILE_LEN + group / 2;
+      skip_tile = (MASK_START_INDEX + 2*M_TILE_LEN - 2) / M_TILE_LEN + (group-1) / 2;
       // Calculate how many tile entries to skip
-      skip_tile_entries = N_ENTRIES_PER_PROJECTION_DIM*(N_TILES_SEQUENCE_DIM-skip_tile);
-      return skip_tile_entries;
+      if (tile_entry == 0) begin
+        skip_tile_entries = N_ENTRIES_PER_PROJECTION_DIM*(N_TILES_SEQUENCE_DIM-skip_tile);
+        if (skip_tile_entries <= 0) begin
+          skip_tile_entries = 0;
+        end
+        $display("skip group %0d tile entry %0d skip tile %0d, skip tile entries %0d", group, tile_entry, skip_tile, skip_tile_entries);
+      end else begin
+        skip_tile_entries = 0;
+      end
     end
     (LowerTriangular): begin
+      if (group % 2 == 1) begin // Group is in AV step
+        return 0;
+      end
       skip_tile = (MASK_START_INDEX-2+2*M_TILE_LEN)/M_TILE_LEN;
       if (group/2 >= skip_tile && tile_entry == 0) begin
         skip_tile_entries = N_ENTRIES_PER_PROJECTION_DIM*(group/2-skip_tile+1);
@@ -301,15 +359,24 @@ function integer calc_skip_output(input integer group, input integer tile_entry)
   integer skip_tile;
   integer skip_tile_entries;
   integer skip_entry;
-  if (group % 2 == 1) begin // Group in AV step
-    return 0;
-  end 
   case (MASK)
     (UpperTriangular): begin
-      skip_tile = (MASK_START_INDEX + 2*M_TILE_LEN - 2) / M_TILE_LEN + group / 2;
-      skip_tile_entries = N_ENTRIES_PER_SEQUENCE_DIM - (skip_tile * N_PE**2);
+      if (group % 2 == 0) begin // Group in QK step
+        return 0;
+      end 
+      skip_tile = (MASK_START_INDEX + 2*M_TILE_LEN - 2) / M_TILE_LEN + (group-1) / 2;
+      skip_entry = skip_tile * N_PE**2;
+      if (tile_entry == 0) begin
+        skip_tile_entries = N_ENTRIES_PER_SEQUENCE_DIM - (skip_tile * N_PE**2);
+        $display("output skip entries %0d, group %0d", skip_tile_entries, group);
+      end else begin
+        skip_tile_entries = 0;
+      end
     end
     (LowerTriangular): begin 
+      if (group % 2 == 1) begin // Group in AV step
+        return 0;
+      end 
       skip_tile = group/2 - (MASK_START_INDEX-2+2*M_TILE_LEN)/M_TILE_LEN;
       if (group/2 >= skip_tile && tile_entry == 0) begin
         skip_tile_entries = (skip_tile+1) * N_PE**2;
@@ -365,7 +432,7 @@ task automatic trigger_ITA ();
       ita_ctrl.start = 1'b0;
 endtask
 
-  task automatic apply_ITA_inputs(input integer phase);
+task automatic apply_ITA_inputs(input integer phase);
       integer stim_fd_inp_attn[2];
       bit input_file_index = 0;
       // Initialize the valid and ready signals to 1 to read the first value
@@ -378,8 +445,6 @@ endtask
       integer stim_fd_inp;
       integer stim_fd_bias;
       integer skip_entries;
-      integer skip_tile;
-      integer skip_tile_entry;
 
       $display("[TB] ITA: Applying  inputs in phase %0d at %t.", phase, $time);
       $display("stim file %s", INPUT_FILES[phase]);
@@ -397,25 +462,12 @@ endtask
         @(posedge clk);
         #(APPL_DELAY);
         if (successful_handshake(inp_valid_q, inp_ready_q)) begin
-          case (MASK)
-            (UpperTriangular): begin
-              if (phase == 3 && group % 2 == 1 && tile_entry == 0) begin
-              skip_entries = calc_skip_entries(group-1, tile_entry);
-                for (int j = 0; j < skip_entries; j++) begin
-                  read_input(stim_fd_inp_attn[0]);
-                end
-              end
+          if (phase == 3) begin
+            skip_entries = calc_skip_entries(group, tile_entry);
+            for (int j = 0; j < skip_entries; j++) begin
+              read_input(stim_fd_inp_attn[0]);
             end
-            (LowerTriangular): begin
-              if (phase == 3) begin
-                skip_entries = calc_skip_entries(group, tile_entry);
-                for (int j = 0; j < skip_entries; j++) begin
-                  read_input(stim_fd_inp_attn[0]);
-                  tile_entry += 1;
-                end
-              end  
-            end
-          endcase
+          end  
           read_input(stim_fd_inp);
           read_bias(stim_fd_bias, phase, tile);
         end
@@ -425,20 +477,6 @@ endtask
         inp_ready_q = inp_ready;
         if(successful_handshake(inp_valid, inp_ready)) begin
           tile_entry += 1;
-          case (MASK)
-            (UpperTriangular): begin
-              // Calculate max tile. Group also counts AV step, therefore, divide by 2
-              skip_tile = (MASK_START_INDEX + 2*M_TILE_LEN - 2) / M_TILE_LEN + group / 2;
-              // Calculate tile entry to skip
-              skip_tile_entry = N_ENTRIES_PER_PROJECTION_DIM*skip_tile;
-              if (tile_entry >= skip_tile_entry && group % 2 == 0 && phase == 3) begin
-                tile_entry = N_ENTRIES_LINEAR_OUTPUT;
-              end
-            end
-            (LowerTriangular): begin
-            end
-            default: ;
-          endcase
           if (should_toggle_input(tile_entry, group) && phase == 3) begin
             $display("[TB] ITA: Input Switch:  tile_entry: %0d, group: %0d at %t.", tile_entry, group, $time);
             toggle_input(tile_entry, group, input_file_index);
@@ -468,9 +506,6 @@ task automatic apply_ITA_weights(input integer phase);
     integer group;
     integer stim_fd_weight;
     integer skip_entries;
-    integer skip_tile;
-    integer skip_tile_entry;
-
     $display("[TB] ITA: Applying weights in phase %0d at %t.", phase, $time);
 
     group = 0;
@@ -485,26 +520,12 @@ task automatic apply_ITA_weights(input integer phase);
       @(posedge clk);
       #(APPL_DELAY);
       if (successful_handshake(inp_weight_valid_q, inp_weight_ready_q)) begin
-        case (MASK)
-          (UpperTriangular): begin
-            if (phase == 3 && group % 2 == 1 && tile_entry == 0) begin
-              skip_entries = calc_skip_entries(group-1, tile_entry);
-              for (int j = 0; j < skip_entries; j++) begin
-                read_weight(stim_fd_weight_attn[0]);
-              end
-            end  
+        if (phase == 3) begin
+          skip_entries = calc_skip_entries(group, tile_entry);
+          for (int j = 0; j < skip_entries; j++) begin
+            read_weight(stim_fd_weight_attn[0]);
           end
-          (LowerTriangular): begin
-            if (phase == 3) begin
-              skip_entries = calc_skip_entries(group, tile_entry);
-              for (int j = 0; j < skip_entries; j++) begin
-                read_weight(stim_fd_weight_attn[0]);
-                tile_entry += 1;
-              end
-            end  
-          end
-          default: ;
-        endcase
+        end  
         read_weight(stim_fd_weight);
       end
       inp_weight_valid = get_random();
@@ -513,20 +534,6 @@ task automatic apply_ITA_weights(input integer phase);
       inp_weight_ready_q = inp_weight_ready;
       if (successful_handshake(inp_weight_valid, inp_weight_ready)) begin
         tile_entry += 1;
-        case (MASK)
-          (UpperTriangular): begin
-            // Calculate max tile. Group also counts AV step, therefore, divide by 2
-            skip_tile = (MASK_START_INDEX + 2*M_TILE_LEN - 2) / M_TILE_LEN + group / 2;
-            // Calculate tile entry to skip
-            skip_tile_entry = N_ENTRIES_PER_PROJECTION_DIM*skip_tile;
-            if (tile_entry >= skip_tile_entry && group % 2 == 0 && phase == 3) begin
-              tile_entry = N_ENTRIES_LINEAR_OUTPUT;
-            end
-          end
-          (LowerTriangular): begin
-          end
-          default: ;
-        endcase
         if (should_toggle_input(tile_entry, group) && phase == 3) begin
           $display("[TB] ITA: Weight Switch: tile_entry: %0d, group: %0d at %t.", tile_entry, group, $time);
           toggle_input(tile_entry, group, input_file_index);
@@ -537,7 +544,7 @@ task automatic apply_ITA_weights(input integer phase);
     end
     $fclose(stim_fd_weight);
   endtask
-  
+
   task apply_ITA_rqs();
     integer stim_fd_mul, stim_fd_shift, stim_fd_add;
     integer ret_code;
@@ -578,8 +585,6 @@ task automatic apply_ITA_weights(input integer phase);
     integer group;
     integer exp_resp_fd;
     integer skip_entries;
-    integer skip_entry;
-    integer skip_tile;
 
     $display("[TB] ITA: Checking outputs in phase %0d at %t.", phase, $time);
 
@@ -596,26 +601,12 @@ task automatic apply_ITA_weights(input integer phase);
       @(posedge clk);
       #(APPL_DELAY);
       if (successful_handshake(oup_valid_q, oup_ready_q)) begin
-        case (MASK)
-          (UpperTriangular): begin
-            if (phase == 3 && is_attention_group(input_file_index) && tile_entry == 0) begin
-              skip_entries = calc_skip_output(group-1, tile_entry);
-              for (int j = 0; j < skip_entries; j++) begin
-                read_exp_resp(exp_resp_fd_attn[0]);
-              end
-            end  
+        if (phase == 3) begin
+          skip_entries = calc_skip_output(group, tile_entry);
+          for (int j = 0; j < skip_entries; j++) begin
+            read_exp_resp(exp_resp_fd_attn[0]);
           end
-          (LowerTriangular): begin
-            if (phase == 3) begin
-              skip_entries = calc_skip_output(group, tile_entry);
-              for (int j = 0; j < skip_entries; j++) begin
-                read_exp_resp(exp_resp_fd_attn[0]);
-                tile_entry += 1;
-              end
-            end  
-          end
-          default: ;
-        endcase
+        end  
         read_exp_resp(exp_resp_fd);
       end
       oup_ready = get_random();
@@ -624,26 +615,10 @@ task automatic apply_ITA_weights(input integer phase);
       oup_ready_q = oup_ready;
       if (successful_handshake(oup_valid, oup_ready)) begin
         tile_entry += 1;
-        case (MASK)
-          (UpperTriangular): begin
-            if (group % 2 == 0 && phase == 3) begin
-              skip_tile = (MASK_START_INDEX + 2*M_TILE_LEN - 2) / M_TILE_LEN + group / 2;
-              skip_entry = skip_tile * N_PE**2;
-              if (tile_entry >= skip_entry) begin
-                tile_entry = N_ENTRIES_PER_SEQUENCE_DIM;
-              end
-            end
-          end
-          (LowerTriangular): begin
-          
-          end
-          default: ;
-        endcase
         if (requant_oup !== exp_res) begin
           $display("[TB] ITA: Wrong value received %x, instead of %x at %t. (phase:  %0d, group: %0d, tile_entry %0d)", requant_oup, exp_res, $time, phase, group, tile_entry);
         end
-
-        if (!is_last_group(group) && phase == 3 && should_toggle_output(input_file_index, tile_entry)) begin
+        if (!is_last_group(group) && phase == 3 && should_toggle_output(input_file_index, tile_entry, group)) begin
             $display("[TB] ITA: %0d outputs were checked in phase %0d.",tile_entry, phase);
             $display("[TB] ITA: Output Switch: tile_entry: %0d, group: %0d at %t.", tile_entry, group, $time);
             toggle_input(tile_entry, group, input_file_index);
@@ -848,6 +823,7 @@ task automatic apply_ITA_weights(input integer phase);
       for (int phase = 0; phase < 7; phase++) begin
         check_ITA_outputs(phase);
       end
+
     end
 
     #(50*CLK_PERIOD);

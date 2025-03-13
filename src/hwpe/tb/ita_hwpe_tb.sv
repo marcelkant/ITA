@@ -344,7 +344,6 @@ endfunction
     logic [31:0] ita_reg_activation_rqs_val;
     logic [1:0][31:0] ita_reg_dims_val;
     logic [31:0] ita_reg_mask_val;
-
     $timeformat(-9, 2, " ns", 10);
 
     // Wait for reset to be released
@@ -370,7 +369,7 @@ endfunction
       PERIPH_READ( 32'h04, 32'h0, status, clk);
 
     // 1: Step Q
-    ita_compute_step(Q, ita_reg_cnt, ita_reg_tiles_val, ita_reg_rqs_val, ita_reg_gelu_b_c_val, ita_reg_activation_rqs_val, ita_reg_dims_val, ita_reg_mask_val, clk);
+    ita_compute_step(Q, ita_reg_cnt, ita_reg_tiles_val, ita_reg_rqs_val, ita_reg_gelu_b_c_val, ita_reg_activation_rqs_val, ita_reg_dims_val, ita_reg_mask_val, clk, 0);
 
     // 2: Step K
     if (SINGLE_ATTENTION == 1) begin
@@ -379,7 +378,7 @@ endfunction
       ita_reg_rqs_val[2] = ita_reg_rqs_val[2] >> 8;
       ita_reg_rqs_val[4] = ita_reg_rqs_val[4] >> 8;
     end
-    ita_compute_step(K, ita_reg_cnt, ita_reg_tiles_val, ita_reg_rqs_val, ita_reg_gelu_b_c_val, ita_reg_activation_rqs_val, ita_reg_dims_val, ita_reg_mask_val, clk);
+    ita_compute_step(K, ita_reg_cnt, ita_reg_tiles_val, ita_reg_rqs_val, ita_reg_gelu_b_c_val, ita_reg_activation_rqs_val, ita_reg_dims_val, ita_reg_mask_val, clk, 0);
 
     // 3: Step V
     if (SINGLE_ATTENTION == 1) begin
@@ -388,7 +387,7 @@ endfunction
       ita_reg_rqs_val[2] = ita_reg_rqs_val[2] >> 8;
       ita_reg_rqs_val[4] = ita_reg_rqs_val[4] >> 8;
     end
-    ita_compute_step(V, ita_reg_cnt, ita_reg_tiles_val, ita_reg_rqs_val, ita_reg_gelu_b_c_val, ita_reg_activation_rqs_val, ita_reg_dims_val, ita_reg_mask_val, clk);
+    ita_compute_step(V, ita_reg_cnt, ita_reg_tiles_val, ita_reg_rqs_val, ita_reg_gelu_b_c_val, ita_reg_activation_rqs_val, ita_reg_dims_val, ita_reg_mask_val, clk, 0);
 
     if (SINGLE_ATTENTION == 1) begin
       // Reset the RQS values
@@ -403,7 +402,7 @@ endfunction
       BASE_PTR_OUTPUT[AV] = BASE_PTR[19] + group * N_TILES_OUTER_X[AV] * N_ELEMENTS_PER_TILE;
 
       // 4: Step QK
-      ita_compute_step(QK, ita_reg_cnt, ita_reg_tiles_val, ita_reg_rqs_val, ita_reg_gelu_b_c_val, ita_reg_activation_rqs_val, ita_reg_dims_val, ita_reg_mask_val, clk);
+      ita_compute_step(QK, ita_reg_cnt, ita_reg_tiles_val, ita_reg_rqs_val, ita_reg_gelu_b_c_val, ita_reg_activation_rqs_val, ita_reg_dims_val, ita_reg_mask_val, clk, group);
 
       // WIESEP: Hack to ensure that during the last tile of AV, the weight pointer is set correctly
       if (group == N_TILES_SEQUENCE_DIM-1) begin
@@ -411,7 +410,7 @@ endfunction
       end
 
       // 5: Step AV
-      ita_compute_step(AV, ita_reg_cnt, ita_reg_tiles_val, ita_reg_rqs_val, ita_reg_gelu_b_c_val, ita_reg_activation_rqs_val, ita_reg_dims_val, ita_reg_mask_val, clk);
+      ita_compute_step(AV, ita_reg_cnt, ita_reg_tiles_val, ita_reg_rqs_val, ita_reg_gelu_b_c_val, ita_reg_activation_rqs_val, ita_reg_dims_val, ita_reg_mask_val, clk, 0);
     end
 
     // 6: Step OW
@@ -423,7 +422,7 @@ endfunction
       ita_reg_rqs_val[2] = ita_reg_rqs_val[3] >> 8;
       ita_reg_rqs_val[4] = ita_reg_rqs_val[5] >> 8;
     end
-    ita_compute_step(OW, ita_reg_cnt, ita_reg_tiles_val, ita_reg_rqs_val, ita_reg_gelu_b_c_val, ita_reg_activation_rqs_val, ita_reg_dims_val, ita_reg_mask_val, clk);
+    ita_compute_step(OW, ita_reg_cnt, ita_reg_tiles_val, ita_reg_rqs_val, ita_reg_gelu_b_c_val, ita_reg_activation_rqs_val, ita_reg_dims_val, ita_reg_mask_val, clk, 0);
 
     ita_reg_cnt = 0;
 
@@ -436,7 +435,7 @@ endfunction
       ita_reg_rqs_val[2] = ita_reg_rqs_val[3] >> 16;
       ita_reg_rqs_val[4] = ita_reg_rqs_val[5] >> 16;
     end
-    ita_compute_step(F1, ita_reg_cnt, ita_reg_tiles_val, ita_reg_rqs_val, ita_reg_gelu_b_c_val, ita_reg_activation_rqs_val, ita_reg_dims_val, ita_reg_mask_val, clk);
+    ita_compute_step(F1, ita_reg_cnt, ita_reg_tiles_val, ita_reg_rqs_val, ita_reg_gelu_b_c_val, ita_reg_activation_rqs_val, ita_reg_dims_val, ita_reg_mask_val, clk, 0);
 
     // 8: Step FF2
     if (SINGLE_ATTENTION == 1) begin
@@ -447,7 +446,7 @@ endfunction
       ita_reg_rqs_val[2] = ita_reg_rqs_val[3] >> 24;
       ita_reg_rqs_val[4] = ita_reg_rqs_val[5] >> 24;
     end
-    ita_compute_step(F2, ita_reg_cnt, ita_reg_tiles_val, ita_reg_rqs_val, ita_reg_gelu_b_c_val, ita_reg_activation_rqs_val, ita_reg_dims_val, ita_reg_mask_val, clk);
+    ita_compute_step(F2, ita_reg_cnt, ita_reg_tiles_val, ita_reg_rqs_val, ita_reg_gelu_b_c_val, ita_reg_activation_rqs_val, ita_reg_dims_val, ita_reg_mask_val, clk, 0);
 
     // Wait for the last step to finish
     wait(evt);
@@ -479,7 +478,8 @@ endfunction
     input  logic [31:0] ita_reg_activation_rqs_val,
     input  logic [1:0][31:0] ita_reg_dims_val,
     input  logic [31:0] ita_reg_mask_val,
-    ref    logic        clk_i
+    ref    logic        clk_i,
+    input int group
   );
 
     logic [31:0] ctrl_engine_val;
@@ -500,11 +500,27 @@ endfunction
     logic [31:0] bias_ptr;
     logic [31:0] output_ptr;
 
-
     // Reprogram ITA once for every tile
     for (int tile_y = 0; tile_y < N_TILES_OUTER_Y[step]; tile_y++) begin
-
-      for (int tile_x = 0; tile_x < N_TILES_OUTER_X[step]; tile_x++) begin
+      integer min_tile = 0;
+      integer max_tile = N_TILES_OUTER_X[step];
+      if (step == QK) begin
+        case (MASK)
+          (UpperTriangular): begin
+            max_tile = (MASK_START_INDEX-2 + 2*M_TILE_LEN) / M_TILE_LEN + group;
+            if (max_tile > N_TILES_OUTER_X[step]) begin
+              max_tile = N_TILES_OUTER_X[step];
+            end
+            $display("skip group %0d, maxtile %0d", group, max_tile);
+          end
+          (LowerTriangular): begin
+            
+          end
+          default: ;
+        endcase
+      end
+      for (int tile_x = 0; tile_x < max_tile; tile_x++) begin
+      //for (int tile_x = 0; tile_x < N_TILES_OUTER_X[step]; tile_x++) begin
         integer output_tile = tile_y * N_TILES_OUTER_X[step] + tile_x;
 
         for (int tile_inner = 0; tile_inner < N_TILES_INNER_DIM[step]; tile_inner++) begin
@@ -817,6 +833,16 @@ endfunction
     // Warning: Make sure the counter points to the correct output address
     counter = address/4;
     while (!$feof(stim_fd)) begin
+      if (STIM_DATA == "hwpe/QK.txt") begin
+        case (MASK)
+          (UpperTriangular): begin
+            
+          end
+          (LowerTriangular): begin
+          end
+          default: ;
+        endcase
+      end
       ret_code = $fscanf(stim_fd, "%x\n", exp_res);
       if (exp_res !== ita_hwpe_tb.i_data_memory.memory[counter]) begin
         $display("Output mismatch at address %x (index %0d): Expected %x, Got %x", counter*4, counter*4-address, exp_res, ita_hwpe_tb.i_data_memory.memory[counter]);
